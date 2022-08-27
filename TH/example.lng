@@ -1,0 +1,37 @@
+-- Out of order to test topsorting
+language NoWhile where
+  extends TwoArmIf
+  terminals
+    - exp
+    + label :: String
+      exp :: Bool;
+
+  Statement
+    -= While
+    += Label label | Goto label;
+
+  AnnStatement
+    -= Ann
+    += Ann label stmt;
+
+language Simple where
+  terminals
+    exp :: Int;
+
+  stmt :: Statement
+    = Exp exp
+    | If exp stmt (Maybe stmt)
+    | While exp stmt
+    | Block [stmt]
+    ;
+
+  -- just for testing multiple nonterminals
+  ann :: AnnStatement
+    = Ann stmt
+    ;
+
+language TwoArmIf where
+  extends Simple
+  Statement
+    -= If
+    += If exp stmt stmt;

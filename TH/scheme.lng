@@ -1,0 +1,124 @@
+language Parsed where
+  terminals
+    var :: String;
+  
+  sexp :: SExp
+    = Var var | SExp [sexp];
+
+language L0 where
+  terminals
+    name :: String;
+  
+  f,x,y,e,body :: Exp
+    = Begin [body]
+    | Ref name
+    | Set name e
+    | Call f x
+    ;
+
+language L1_InsertApply where
+  extends L0
+  Exp += Apply f x;
+
+language L2_ExpandApply where
+  extends L1_InsertApply
+  Exp
+    -= Apply
+    += Let [(x,e)] body
+     | Cnd e body body
+     | PtrEq x y
+     | Delay body
+     | Force e
+     ;
+
+language L3_Rename where
+  extends L2_ExpandApply
+  terminals
+    - name
+    + name :: Binding;
+
+language L4_Let1 where
+  extends L3_Rename
+  Exp
+    -= Let
+    += Let name e body;
+
+language L5_CPS where
+  extends L4_Let1
+  Exp
+    -= Begin, Call, Delay, Force
+    += Call f x k
+     | Delay name body
+     | Force e k
+     | Throw e k
+     | Halt e
+     ;
+  
+  + k :: Continuation
+    = KVar name
+    | KFun name body
+    ;
+
+language L5_1_UseCounts where
+  extends L5_CPS
+  terminals
+    + count :: Int;
+
+  Exp
+    -= Let
+    += Let name count e body;
+
+language L5_2_FreeVars where
+  extends L5_CPS
+  terminals
+    + fvs :: FreeVars;
+
+  Exp
+    -= Delay
+    += Delay fvs name body;
+
+  Continuation
+    -= KFun
+    += KFun fvs name body;
+
+language L6_NestedClosures where
+  extends L5_CPS
+  terminals
+    + ix :: Int;
+
+  Exp
+    -= Delay, Call, Force, Throw
+    += Closure abs [e]
+     | ClosureRef x ix
+     | Call f x y -- (f=self x=arg y=cont)
+     | Force e y
+     | Throw e y
+     ;
+  
+  - Continuation
+  + abs :: Abstraction
+    = AbsDelay name name body
+    | AbsKFun  name name body
+    ;
+
+language L7_LiftedClosures where
+  extends L6_NestedClosures
+  entry Program
+
+  terminals
+    + cp :: CodePointer;
+
+  + prog :: Program
+    = Program [(cp,fun)];
+
+  + cloType :: ClosureType
+    = DelayClosure | FunClosure;
+
+  - Abstraction
+  + fun :: Function
+    = Function name name body
+    | Entry body;
+  
+  Exp
+    -= Closure
+    += Closure cloType cp [e];
